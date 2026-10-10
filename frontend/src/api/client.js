@@ -1,14 +1,39 @@
 import axios from 'axios'
 
-const API_BASE = import.meta.env.VITE_API_URL || '/api'
+export const getApiBase = () => {
+  if (typeof window !== 'undefined') {
+    const custom = localStorage.getItem('gst_backend_url')
+    if (custom && custom.trim()) {
+      return custom.trim().replace(/\/+$/, '')
+    }
+  }
+  return (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '')
+}
+
+export const setApiBase = (url) => {
+  if (typeof window !== 'undefined') {
+    if (url && url.trim()) {
+      let clean = url.trim().replace(/\/+$/, '')
+      if (!clean.endsWith('/api') && !clean.includes('/api/')) {
+        clean = `${clean}/api`
+      }
+      localStorage.setItem('gst_backend_url', clean)
+    } else {
+      localStorage.removeItem('gst_backend_url')
+    }
+    // Dispatch event for UI reactivity
+    window.dispatchEvent(new CustomEvent('gst-backend-url-changed', { detail: getApiBase() }))
+  }
+}
 
 const api = axios.create({
-  baseURL: API_BASE,
   timeout: 120000,
 })
 
-// Attach token or guest session ID to outgoing requests
+// Attach base URL and token/guest headers dynamically
 api.interceptors.request.use((config) => {
+  config.baseURL = getApiBase()
+  
   const token = localStorage.getItem('gst_auth_token')
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
@@ -22,6 +47,19 @@ api.interceptors.request.use((config) => {
   }
   return config
 })
+
+// Intercept responses to detect 404 or backend disconnects
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 404 || error.code === 'ERR_NETWORK') {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('gst-backend-disconnected', { detail: error }))
+      }
+    }
+    return Promise.reject(error)
+  }
+)
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
@@ -73,11 +111,15 @@ export const streamChat = async (query, fileId, onToken, onDone, onError) => {
       if (guestId) headers['X-Guest-ID'] = guestId
     }
 
-    const response = await fetch(`${API_BASE}/chat/stream`, {
+    const response = await fetch(`${getApiBase()}/chat/stream`, {
       method: 'POST',
       headers,
       body: JSON.stringify({ query, file_id: fileId }),
     })
+
+    if (!response.ok) {
+      throw new Error(`Chat stream failed (HTTP ${response.status})`)
+    }
 
     const reader  = response.body.getReader()
     const decoder = new TextDecoder()
@@ -123,29 +165,29 @@ export const computeReconciliation  = (gstr1Id, gstr3bId) =>
 
 // ── Export ────────────────────────────────────────────────────────────────────
 
-export const exportExcel = (fileId) => window.open(`/api/export/excel/${fileId}`, '_blank')
-export const exportPDF   = (fileId) => window.open(`/api/export/pdf/${fileId}`,   '_blank')
-export const exportActiveExcel = () => window.open('/api/export/active/excel', '_blank')
-export const exportActivePDF   = () => window.open('/api/export/active/pdf',   '_blank')
+export const exportExcel = (fileId) => window.open(`${getApiBase()}/export/excel/${fileId}`, '_blank')
+export const exportPDF   = (fileId) => window.open(`${getApiBase()}/export/pdf/${fileId}`,   '_blank')
+export const exportActiveExcel = () => window.open(`${getApiBase()}/export/active/excel`, '_blank')
+export const exportActivePDF   = () => window.open(`${getApiBase()}/export/active/pdf`,   '_blank')
 
 // MOM export — format: 'raw' | 'l' | 'cr', optional annualFileId
 export const exportMOMExcel = (fmt = 'raw', annualFileId = null) => {
   const params = new URLSearchParams({ format: fmt })
   if (annualFileId) params.append('annual_file_id', annualFileId)
-  window.open(`/api/export/mom/excel?${params}`, '_blank')
+  window.open(`${getApiBase()}/export/mom/excel?${params}`, '_blank')
 }
 
 // GSTR-3B MOM export — 52-column format matching official reference
 export const exportMOM3BExcel = (fmt = 'raw', annualFileId = null) => {
   const params = new URLSearchParams({ format: fmt })
   if (annualFileId) params.append('annual_file_id', annualFileId)
-  window.open(`/api/export/mom-3b/excel?${params}`, '_blank')
+  window.open(`${getApiBase()}/export/mom-3b/excel?${params}`, '_blank')
 }
 
 // GSTR-9 export — exact reference format (one sheet per year)
 export const exportMOM9Excel = (fmt = 'raw') => {
   const params = new URLSearchParams({ format: fmt })
-  window.open(`/api/export/mom-9/excel?${params}`, '_blank')
+  window.open(`${getApiBase()}/export/mom-9/excel?${params}`, '_blank')
 }
 
 // ── GSTR-2B Compiler ─────────────────────────────────────────────────────────
@@ -158,7 +200,7 @@ export const compileGSTR2B = async (files, onProgress) => {
   const form = new FormData()
   files.forEach((f) => form.append('files', f))
 
-  const response = await fetch('/api/gstr2b/compile', {
+  const response = await fetch(`${getApiBase()}/gstr2b/compile`, {
     method: 'POST',
     body: form,
   })
@@ -189,7 +231,7 @@ export const compileGSTR2A = async (files, onProgress) => {
   const form = new FormData()
   files.forEach((f) => form.append('files', f))
 
-  const response = await fetch('/api/gstr2a/compile', {
+  const response = await fetch(`${getApiBase()}/gstr2a/compile`, {
     method: 'POST',
     body: form,
   })
@@ -213,7 +255,7 @@ export const compileGSTR2A = async (files, onProgress) => {
 
 export const getRiskRatios   = () => api.get('/intelligence/ratios')
 export const getAnomalies    = () => api.get('/intelligence/anomalies')
-export const exportRiskExcel = () => window.open('/api/export/risk/excel', '_blank')
-export const exportAnomaliesExcel = () => window.open('/api/export/anomalies/excel', '_blank')
+export const exportRiskExcel = () => window.open(`${getApiBase()}/export/risk/excel`, '_blank')
+export const exportAnomaliesExcel = () => window.open(`${getApiBase()}/export/anomalies/excel`, '_blank')
 
 export default api

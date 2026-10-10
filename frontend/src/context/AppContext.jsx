@@ -158,7 +158,17 @@ export function AppProvider({ children }) {
 
       return data
     } catch (err) {
-      const msg = err.response?.data?.error || err.message || 'Upload failed'
+      let msg = 'Upload failed'
+      if (err.response?.status === 404) {
+        msg = 'Backend API not found (404). Please connect your backend URL (e.g. Railway URL).'
+      } else if (err.response?.data?.error) {
+        const raw = err.response.data.error
+        msg = typeof raw === 'object' ? (raw.message || JSON.stringify(raw)) : String(raw)
+      } else if (err.response?.data?.message) {
+        msg = String(err.response.data.message)
+      } else if (err.message) {
+        msg = typeof err.message === 'object' ? JSON.stringify(err.message) : String(err.message)
+      }
       throw new Error(msg)
     } finally {
       setIsUploading(false)

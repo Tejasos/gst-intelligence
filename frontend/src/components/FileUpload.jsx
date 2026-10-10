@@ -205,10 +205,25 @@ export default function FileUpload({ compact = false }) {
               {r.status === 'success' && <CheckCircle2 className="w-4 h-4 flex-shrink-0" />}
               {r.status === 'error'   && <AlertCircle  className="w-4 h-4 flex-shrink-0" />}
               {r.status === 'processing' && <Loader2  className="w-4 h-4 flex-shrink-0 animate-spin" />}
-              <span className="truncate">
-                <span className="font-medium">{r.name}</span>
-                <span className="opacity-70"> — {r.message}</span>
-              </span>
+              <div className="flex-1 flex items-center justify-between gap-2 min-w-0">
+                <span className="truncate">
+                  <span className="font-medium">{r.name}</span>
+                  <span className="opacity-70"> — {r.message}</span>
+                </span>
+                {(r.message?.includes('404') || r.message?.includes('Backend') || r.message?.includes('connect') || r.message?.includes('failed')) && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      window.dispatchEvent(new CustomEvent('gst-backend-disconnected'))
+                    }}
+                    className="shrink-0 text-xs px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 transition-colors"
+                  >
+                    Connect Backend API
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>
