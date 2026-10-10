@@ -56,9 +56,60 @@ _builtins.print = _tee_print
 
 app = Flask(__name__)
 
-# Configure CORS with allowed production origins
-origins = Config.ALLOWED_ORIGINS if Config.APP_ENV == "production" else "*"
-CORS(app, resources={r"/api/*": {"origins": origins}})
+# Configure CORS globally for all endpoints (supporting Vercel, Railway, and localhost)
+CORS(
+    app,
+    resources={r"/*": {"origins": "*"}},
+    supports_credentials=False,
+    allow_headers=["Content-Type", "Authorization", "X-Guest-ID", "X-Auth-Token", "X-Requested-With"],
+    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"],
+)
+
+class ApiPrefixAndCorsMiddleware:
+    """WSGI middleware ensuring /api prefix rewriting and robust CORS headers on ALL responses."""
+    def __init__(self, wsgi_app):
+        self.wsgi_app = wsgi_app
+
+    def __call__(self, environ, start_response):
+        path_info = environ.get("PATH_INFO", "")
+        # Rewrite non-api paths to /api prefix so /upload routes to /api/upload
+        if not path_info.startswith("/api/"):
+            for ep in ("upload", "chat", "analytics", "export", "files", "reconciliation", "intelligence", "gstr2b", "gstr2a", "auth", "health", "ready", "session"):
+                if path_info == f"/{ep}" or path_info.startswith(f"/{ep}/"):
+                    environ["PATH_INFO"] = f"/api{path_info}"
+                    break
+
+        # Fast preflight handling
+        if environ.get("REQUEST_METHOD") == "OPTIONS":
+            origin = environ.get("HTTP_ORIGIN", "*")
+            headers = [
+                ("Access-Control-Allow-Origin", origin if origin else "*"),
+                ("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH"),
+                ("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Guest-ID, X-Auth-Token, X-Requested-With"),
+                ("Access-Control-Max-Age", "86400"),
+                ("Content-Length", "0"),
+                ("Content-Type", "text/plain"),
+            ]
+            start_response("204 No Content", headers)
+            return [b""]
+
+        def custom_start_response(status, response_headers, exc_info=None):
+            origin = environ.get("HTTP_ORIGIN", "*")
+            filtered = [
+                (k, v) for k, v in response_headers 
+                if not k.lower().startswith("access-control-")
+            ]
+            filtered.extend([
+                ("Access-Control-Allow-Origin", origin if origin else "*"),
+                ("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH"),
+                ("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Guest-ID, X-Auth-Token, X-Requested-With"),
+                ("Access-Control-Max-Age", "86400"),
+            ])
+            return start_response(status, filtered, exc_info)
+
+        return self.wsgi_app(environ, custom_start_response)
+
+app.wsgi_app = ApiPrefixAndCorsMiddleware(app.wsgi_app)
 
 app.register_blueprint(upload_bp,       url_prefix="/api")
 app.register_blueprint(chat_bp,         url_prefix="/api")

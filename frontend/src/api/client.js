@@ -1,13 +1,21 @@
 import axios from 'axios'
 
 export const getApiBase = () => {
+  let base = ''
   if (typeof window !== 'undefined') {
     const custom = localStorage.getItem('gst_backend_url')
     if (custom && custom.trim()) {
-      return custom.trim().replace(/\/+$/, '')
+      base = custom.trim().replace(/\/+$/, '')
     }
   }
-  return (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '')
+  if (!base) {
+    base = (import.meta.env.VITE_API_URL || '/api').trim().replace(/\/+$/, '')
+  }
+  // Automatically normalize http/https hostnames so /api is always the base
+  if (/^https?:\/\//i.test(base) && !base.endsWith('/api') && !base.includes('/api/')) {
+    base = `${base}/api`
+  }
+  return base
 }
 
 export const setApiBase = (url) => {
