@@ -7,11 +7,18 @@ const api = axios.create({
   timeout: 120000,
 })
 
-// Attach token to outgoing requests
+// Attach token or guest session ID to outgoing requests
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('gst_auth_token')
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
+  } else {
+    let guestId = localStorage.getItem('gst_guest_id')
+    if (!guestId) {
+      guestId = 'guest_' + Math.random().toString(36).substring(2, 12)
+      localStorage.setItem('gst_guest_id', guestId)
+    }
+    config.headers['X-Guest-ID'] = guestId
   }
   return config
 })
@@ -61,6 +68,9 @@ export const streamChat = async (query, fileId, onToken, onDone, onError) => {
     const headers = { 'Content-Type': 'application/json' }
     if (token) {
       headers.Authorization = `Bearer ${token}`
+    } else {
+      const guestId = localStorage.getItem('gst_guest_id')
+      if (guestId) headers['X-Guest-ID'] = guestId
     }
 
     const response = await fetch(`${API_BASE}/chat/stream`, {

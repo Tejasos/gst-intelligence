@@ -27,7 +27,8 @@ class Config:
         for origin in os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
         if origin.strip()
     ]
-    AUTH_REQUIRED = os.getenv("AUTH_REQUIRED", "true").lower() in ("true", "1", "yes")
+    AUTH_REQUIRED = os.getenv("AUTH_REQUIRED", "false").lower() in ("true", "1", "yes")
+    ALLOW_GUEST_ACCESS = os.getenv("ALLOW_GUEST_ACCESS", "true").lower() in ("true", "1", "yes")
     SESSION_EXPIRY_HOURS = int(os.getenv("SESSION_EXPIRY_HOURS", "72"))
     
     # AI Provider Configuration

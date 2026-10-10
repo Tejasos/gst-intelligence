@@ -19,11 +19,11 @@ def require_auth(f):
         user = validate_session(token) if token else None
         
         if not user:
-            if not Config.AUTH_REQUIRED:
-                # Local dev fallback
-                user = {"id": "default_user", "username": "local_dev", "email": "local@localhost"}
+            guest_id = request.headers.get("X-Guest-ID", "").strip() or "default_user"
+            if not Config.AUTH_REQUIRED or Config.ALLOW_GUEST_ACCESS:
+                user = {"id": guest_id, "username": "Guest", "email": "guest@gst-intelligence.app", "is_guest": True}
             else:
-                return jsonify(error="Authentication required", code="UNAUTHORIZED"), 401
+                return jsonify(error="Authentication required. Please sign in or register to upload returns.", code="UNAUTHORIZED"), 401
                 
         g.current_user = user
         store.current_user_id = user["id"]
@@ -77,4 +77,6 @@ def logout():
 @auth_bp.get("/auth/me")
 @require_auth
 def me():
+    if g.current_user.get("is_guest"):
+        return jsonify(error="Authentication required", code="UNAUTHORIZED"), 401
     return jsonify(user=g.current_user), 200
