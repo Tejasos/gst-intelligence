@@ -1,0 +1,42 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      - APP_ENV=production
+      - DATA_DIR=/app/data
+      - DATABASE_PATH=/app/data/gst_intelligence.db
+      - UPLOAD_DIR=/app/data/uploads
+      - OUTPUT_DIR=/app/data/output
+      - BACKUP_DIR=/app/data/backups
+      - SECRET_KEY=${SECRET_KEY:-gst-production-secret-replace-me}
+      - ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+      - AUTH_REQUIRED=true
+      - AI_PROVIDER=${AI_PROVIDER:-ollama}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3:8b}
+      - HOSTED_AI_BASE_URL=${HOSTED_AI_BASE_URL:-https://api.openai.com/v1}
+      - HOSTED_AI_API_KEY=${HOSTED_AI_API_KEY:-}
+      - HOSTED_AI_MODEL=${HOSTED_AI_MODEL:-gpt-4o-mini}
+    volumes:
+      - gst_data:/app/data
+    ports:
+      - "8000:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  gst_data:
+    driver: local

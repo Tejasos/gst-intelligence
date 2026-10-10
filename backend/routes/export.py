@@ -7,6 +7,8 @@ import openpyxl
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 from store import store
+from routes.auth import require_auth
+from services.storage_service import get_output_path
 from services.export_service import export_excel, export_pdf_report
 from services.risk_engine import compute_risk_ratios
 
@@ -48,12 +50,13 @@ def _get_ctx(file_id):
 
 
 @export_bp.get("/export/excel/<file_id>")
+@require_auth
 def dl_excel(file_id):
     extracted, analytics = _get_ctx(file_id)
     if extracted is None:
         return jsonify(error="File not found"), 404
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    out = os.path.join("output", f"GST_Report_{file_id[:8]}_{ts}.xlsx")
+    out = get_output_path(f"GST_Report_{file_id[:8]}_{ts}.xlsx")
     try:
         export_excel(extracted, analytics, out)
     except Exception as exc:
@@ -65,12 +68,13 @@ def dl_excel(file_id):
 
 
 @export_bp.get("/export/pdf/<file_id>")
+@require_auth
 def dl_pdf(file_id):
     extracted, analytics = _get_ctx(file_id)
     if extracted is None:
         return jsonify(error="File not found"), 404
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    out = os.path.join("output", f"GST_CA_Report_{file_id[:8]}_{ts}.pdf")
+    out = get_output_path(f"GST_CA_Report_{file_id[:8]}_{ts}.pdf")
     try:
         export_pdf_report(extracted, analytics, out)
     except Exception as exc:

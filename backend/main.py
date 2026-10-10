@@ -21,6 +21,10 @@ from routes.reconciliation import recon_bp
 from routes.intelligence   import intelligence_bp
 from routes.gstr2b         import gstr2b_bp
 from routes.gstr2a         import gstr2a_bp
+from routes.auth           import auth_bp
+from config import Config
+
+Config.ensure_directories()
 
 logging.basicConfig(
     level=logging.INFO,
@@ -51,10 +55,10 @@ def _tee_print(*args, **kwargs):
 _builtins.print = _tee_print
 
 app = Flask(__name__)
-CORS(app, resources={r"/api/*": {"origins": "*"}})
 
-os.makedirs("uploads", exist_ok=True)
-os.makedirs("output",  exist_ok=True)
+# Configure CORS with allowed production origins
+origins = Config.ALLOWED_ORIGINS if Config.APP_ENV == "production" else "*"
+CORS(app, resources={r"/api/*": {"origins": origins}})
 
 app.register_blueprint(upload_bp,       url_prefix="/api")
 app.register_blueprint(chat_bp,         url_prefix="/api")
@@ -64,6 +68,7 @@ app.register_blueprint(recon_bp,        url_prefix="/api")
 app.register_blueprint(intelligence_bp, url_prefix="/api")
 app.register_blueprint(gstr2b_bp,       url_prefix="/api")
 app.register_blueprint(gstr2a_bp,       url_prefix="/api")
+app.register_blueprint(auth_bp,         url_prefix="/api")
 
 
 @app.get("/")
@@ -73,8 +78,42 @@ def root():
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "ok", "service": "GST Intelligence API", "version": "2.0.0"}
+
+
+@app.get("/api/ready")
+def readiness():
+    """Readiness probe checking database connectivity and storage health."""
+    from database import get_db_connection
+    status = {"status": "ready", "database": "unknown", "storage": "unknown"}
+    
+    # Check DB
+    try:
+        with get_db_connection() as conn:
+            conn.execute("SELECT 1;").fetchone()
+        status["database"] = "ok"
+    except Exception as e:
+        status["database"] = f"error: {e}"
+        status["status"] = "not_ready"
+        
+    # Check Storage
+    try:
+        upload_path = os.path.abspath(Config.UPLOAD_DIR)
+        os.makedirs(upload_path, exist_ok=True)
+        test_file = os.path.join(upload_path, ".health_check")
+        with open(test_file, "w") as f:
+            f.write("ok")
+        if os.path.exists(test_file):
+            os.remove(test_file)
+        status["storage"] = "ok"
+    except Exception as e:
+        status["storage"] = f"error: {e}"
+        status["status"] = "not_ready"
+        
+    http_code = 200 if status["status"] == "ready" else 503
+    return status, http_code
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000, debug=True)
+    port = int(os.getenv("PORT", "8000"))
+    app.run(host="0.0.0.0", port=port, debug=Config.DEBUG)

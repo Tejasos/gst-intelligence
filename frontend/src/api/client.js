@@ -1,9 +1,28 @@
 import axios from 'axios'
 
+const API_BASE = import.meta.env.VITE_API_URL || '/api'
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: API_BASE,
   timeout: 120000,
 })
+
+// Attach token to outgoing requests
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('gst_auth_token')
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+
+export const loginApi = (email, password) => api.post('/auth/login', { email, password })
+export const registerApi = (username, email, password) => api.post('/auth/register', { username, email, password })
+export const logoutApi = () => api.post('/auth/logout')
+export const getMeApi = () => api.get('/auth/me')
+export const getAiStatusApi = () => api.get('/ai/status')
 
 // ── Upload ────────────────────────────────────────────────────────────────────
 
@@ -38,9 +57,15 @@ export const clearChatHistory = () => api.delete('/chat/history')
  */
 export const streamChat = async (query, fileId, onToken, onDone, onError) => {
   try {
-    const response = await fetch('/api/chat/stream', {
+    const token = localStorage.getItem('gst_auth_token')
+    const headers = { 'Content-Type': 'application/json' }
+    if (token) {
+      headers.Authorization = `Bearer ${token}`
+    }
+
+    const response = await fetch(`${API_BASE}/chat/stream`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ query, file_id: fileId }),
     })
 

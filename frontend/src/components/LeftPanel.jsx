@@ -8,9 +8,11 @@ import {
   GitCompare, RotateCcw,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
+import { useAuth } from '../context/AuthContext'
 import { activateFile as activateFileAPI, exportActiveExcel, exportActivePDF } from '../api/client'
 import { useNavigate } from 'react-router-dom'
 import ThemeToggle from './ThemeToggle'
+import AuthModal from './AuthModal'
 
 function StatusIcon({ status }) {
   if (status === 'ready')   return <CheckCircle2 className="w-3 h-3 text-emerald-400" />
@@ -134,6 +136,8 @@ export default function LeftPanel() {
     reconciliations,
     clearSession,
   } = useApp()
+  const { user, logout } = useAuth()
+  const [showAuthModal, setShowAuthModal] = useState(false)
   const [confirmClear, setConfirmClear] = useState(false)
 
   const handleNewSession = async () => {
@@ -352,10 +356,39 @@ export default function LeftPanel() {
         )}
       </div>
 
+      {/* User & Auth Account Section */}
+      <div className="px-3 py-2.5 border-t border-slate-800/60 bg-slate-900/30">
+        {user ? (
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white text-[11px] font-bold shrink-0">
+                {(user.username || 'U')[0].toUpperCase()}
+              </div>
+              <span className="text-xs text-slate-300 font-medium truncate">{user.username}</span>
+            </div>
+            <button
+              onClick={logout}
+              className="text-[11px] text-slate-400 hover:text-rose-400 transition-colors shrink-0"
+            >
+              Sign Out
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowAuthModal(true)}
+            className="w-full py-1.5 px-3 rounded-lg bg-blue-600/20 border border-blue-500/30 text-blue-400 text-xs font-semibold hover:bg-blue-600/30 transition-all text-center"
+          >
+            Sign In / Register
+          </button>
+        )}
+      </div>
+
       {/* Footer */}
-      <div className="p-3 border-t border-slate-800/60 text-center">
+      <div className="p-2 border-t border-slate-800/40 text-center">
         <p className="text-[10px] text-slate-700">Audit-safe · No hallucinations</p>
       </div>
+
+      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
     </aside>
   )
 }

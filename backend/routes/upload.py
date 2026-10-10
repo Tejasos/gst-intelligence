@@ -2,9 +2,12 @@
 import os
 import uuid
 import logging
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, g
 
 from store import store
+from config import Config
+from routes.auth import require_auth
+from services.storage_service import validate_pdf_content, save_uploaded_file
 from services.pdf_parser import parse_gst_pdf, _extract_period_from_filename
 from services.analytics_engine import run_analytics
 from services.reconciliation import compute_reconciliation
@@ -12,10 +15,9 @@ from services.reconciliation import compute_reconciliation
 upload_bp = Blueprint("upload", __name__)
 logger = logging.getLogger(__name__)
 
-MAX_MB = 50
-
 
 @upload_bp.post("/upload")
+@require_auth
 def upload_pdf():
     if "file" not in request.files:
         return jsonify(error="No file provided"), 400
@@ -25,13 +27,14 @@ def upload_pdf():
         return jsonify(error="Only PDF files accepted"), 400
 
     content = f.read()
-    if len(content) > MAX_MB * 1024 * 1024:
-        return jsonify(error=f"File too large (max {MAX_MB} MB)"), 400
+    if len(content) > Config.MAX_CONTENT_LENGTH:
+        return jsonify(error=f"File too large (max {Config.MAX_CONTENT_LENGTH // (1024*1024)} MB)"), 400
 
-    file_id   = str(uuid.uuid4())
-    save_path = os.path.join("uploads", f"{file_id}.pdf")
-    with open(save_path, "wb") as fh:
-        fh.write(content)
+    if not validate_pdf_content(content):
+        return jsonify(error="Invalid PDF format: file signature verification failed"), 400
+
+    file_id, save_path = save_uploaded_file(content, f.filename)
+    user_id = getattr(g, "current_user", {}).get("id", "default_user")
 
     try:
         extracted = parse_gst_pdf(save_path)
@@ -53,7 +56,7 @@ def upload_pdf():
             extracted['period'] = period
             logger.info("[Upload] Period upgraded from filename '%s' → '%s'", f.filename, period)
 
-    store.add_file(file_id, f.filename, gst_type, period)
+    store.add_file(file_id, f.filename, gst_type, period, user_id=user_id)
     store.set_extracted_data(file_id, extracted)
 
     # ── Log key extracted values so we can confirm the parser output ──────────
@@ -130,14 +133,17 @@ def upload_pdf():
 
 
 @upload_bp.get("/files")
+@require_auth
 def list_files():
+    uid = getattr(g, "current_user", {}).get("id", None)
     return jsonify(
-        files=store.list_files(),
-        files_by_period=store.get_files_by_period(),
+        files=store.list_files(user_id=uid),
+        files_by_period=store.get_files_by_period(user_id=uid),
     )
 
 
 @upload_bp.post("/files/<file_id>/activate")
+@require_auth
 def activate_file(file_id):
     if file_id not in store.files:
         return jsonify(error="File not found"), 404
@@ -146,8 +152,10 @@ def activate_file(file_id):
 
 
 @upload_bp.delete("/session")
+@require_auth
 def reset_session():
     """Clear all uploaded files, analytics, reconciliations and chat from the store."""
-    store.clear_all()
-    logger.info("[Session] Store cleared — new session started")
+    uid = getattr(g, "current_user", {}).get("id", None)
+    store.clear_all(user_id=uid)
+    logger.info("[Session] Store cleared for user %s", uid)
     return jsonify(status="cleared", message="Session reset. All files and data cleared.")

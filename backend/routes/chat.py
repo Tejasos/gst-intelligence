@@ -3,29 +3,39 @@ Chat route — Flask blueprint with SSE streaming + direct numeric answers.
 
 RULE: Numeric questions → direct computed answer (no LLM needed).
 LLM is ONLY used for explanations, insights, and summarization.
+Supports both Ollama and hosted LLM providers through ai_provider.
 """
 import json
 import logging
-import asyncio
-from flask import Blueprint, Response, jsonify, request, stream_with_context
+from flask import Blueprint, Response, jsonify, request, stream_with_context, g
 
 from store import store
+from routes.auth import require_auth
 from services.chat_service import (
-    build_context, build_prompt, ask_ollama, get_direct_answer,
+    build_context, build_prompt, get_direct_answer,
 )
+from services.ai_provider import ask_ai, stream_ai, get_ai_status
 
 chat_bp = Blueprint("chat", __name__)
 logger  = logging.getLogger(__name__)
 
 
+@chat_bp.get("/ai/status")
+def ai_status():
+    """Return configured AI provider information and reachability."""
+    return jsonify(get_ai_status())
+
+
 @chat_bp.post("/chat")
+@require_auth
 def chat():
     data  = request.get_json() or {}
     query = data.get("query", "").strip()
     if not query:
         return jsonify(error="Query is required"), 400
 
-    if not store.has_data():
+    uid = getattr(g, "current_user", {}).get("id", None)
+    if not store.has_data(user_id=uid):
         return jsonify(
             answer="No GST document uploaded yet. Please upload a GSTR-1, 3B, 9, or 9C PDF first.",
             sources=[],
@@ -33,15 +43,15 @@ def chat():
             direct=False,
         )
 
-    ctx       = store.get_active_context()
+    ctx       = store.get_active_context(user_id=uid)
     extracted = ctx.get("extracted_data") or {}
     analytics = ctx.get("analytics") or {}
 
     # Try direct numeric answer first (no LLM needed)
     direct_answer = get_direct_answer(query, extracted, analytics)
     if direct_answer:
-        store.add_message("user", query)
-        store.add_message("assistant", direct_answer)
+        store.add_message("user", query, user_id=uid)
+        store.add_message("assistant", direct_answer, user_id=uid)
         return jsonify(
             answer=direct_answer,
             sources=["Extracted GST Data", "Computed Analytics"],
@@ -51,15 +61,16 @@ def chat():
 
     # Fallback: LLM for explanation/insights
     context = build_context(ctx)
-    prompt  = build_prompt(query, context, store.get_chat_history())
-    store.add_message("user", query)
-    answer = asyncio.run(ask_ollama(prompt))
-    store.add_message("assistant", answer)
+    prompt  = build_prompt(query, context, store.get_chat_history(user_id=uid))
+    store.add_message("user", query, user_id=uid)
+    answer = ask_ai(prompt)
+    store.add_message("assistant", answer, user_id=uid)
 
     return jsonify(answer=answer, sources=["Extracted GST Data", "Computed Analytics"], query=query, direct=False)
 
 
 @chat_bp.post("/chat/stream")
+@require_auth
 def chat_stream():
     data  = request.get_json() or {}
     query = data.get("query", "").strip()
@@ -69,13 +80,14 @@ def chat_stream():
             yield f"data: {json.dumps({'token': 'Query is required.', 'done': True})}\n\n"
         return Response(stream_with_context(no_query()), mimetype="text/event-stream")
 
-    if not store.has_data():
+    uid = getattr(g, "current_user", {}).get("id", None)
+    if not store.has_data(user_id=uid):
         def no_data():
             msg = "No GST document uploaded yet. Please upload a PDF first."
             yield f"data: {json.dumps({'token': msg, 'done': True})}\n\n"
         return Response(stream_with_context(no_data()), mimetype="text/event-stream")
 
-    ctx       = store.get_active_context()
+    ctx       = store.get_active_context(user_id=uid)
     extracted = ctx.get("extracted_data") or {}
     analytics = ctx.get("analytics") or {}
 
@@ -83,11 +95,10 @@ def chat_stream():
     direct_answer = get_direct_answer(query, extracted, analytics)
     if direct_answer:
         def direct_stream():
-            store.add_message("user", query)
-            # Stream word by word for smoother UX
+            store.add_message("user", query, user_id=uid)
             for word in direct_answer.split(" "):
                 yield f"data: {json.dumps({'token': word + ' ', 'done': False, 'direct': True})}\n\n"
-            store.add_message("assistant", direct_answer)
+            store.add_message("assistant", direct_answer, user_id=uid)
             yield f"data: {json.dumps({'token': '', 'done': True, 'direct': True})}\n\n"
         return Response(
             stream_with_context(direct_stream()),
@@ -95,50 +106,18 @@ def chat_stream():
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
-    # LLM streaming
+    # LLM streaming via unified ai_provider
     context = build_context(ctx)
-    prompt  = build_prompt(query, context, store.get_chat_history())
-    store.add_message("user", query)
+    prompt  = build_prompt(query, context, store.get_chat_history(user_id=uid))
+    store.add_message("user", query, user_id=uid)
 
     def generate():
         full = []
-        import httpx
-        payload = {
-            "model": "llama3:8b",
-            "prompt": prompt,
-            "stream": True,
-            "options": {"temperature": 0.1, "top_p": 0.9, "num_predict": 1024},
-        }
-        try:
-            with httpx.stream("POST", "http://localhost:11434/api/generate",
-                              json=payload, timeout=120) as r:
-                for line in r.iter_lines():
-                    if line:
-                        try:
-                            chunk = json.loads(line)
-                            token = chunk.get("response", "")
-                            if token:
-                                full.append(token)
-                                yield f"data: {json.dumps({'token': token, 'done': False})}\n\n"
-                            if chunk.get("done"):
-                                break
-                        except json.JSONDecodeError:
-                            continue
-        except httpx.ConnectError:
-            msg = (
-                "⚠️ Ollama is not running. "
-                "Start it: `ollama serve` and pull: `ollama pull llama3:8b`. "
-                "\n\nFor numeric questions, I can still answer directly without the AI model — "
-                "try asking about specific values like 'total tax liability' or 'ITC available'."
-            )
-            full.append(msg)
-            yield f"data: {json.dumps({'token': msg, 'done': False})}\n\n"
-        except Exception as exc:
-            msg = f"⚠️ AI error: {exc}"
-            full.append(msg)
-            yield f"data: {json.dumps({'token': msg, 'done': False})}\n\n"
+        for token in stream_ai(prompt):
+            full.append(token)
+            yield f"data: {json.dumps({'token': token, 'done': False})}\n\n"
 
-        store.add_message("assistant", "".join(full))
+        store.add_message("assistant", "".join(full), user_id=uid)
         yield f"data: {json.dumps({'token': '', 'done': True})}\n\n"
 
     return Response(
@@ -149,11 +128,15 @@ def chat_stream():
 
 
 @chat_bp.get("/chat/history")
+@require_auth
 def get_history():
-    return jsonify(history=store.get_chat_history())
+    uid = getattr(g, "current_user", {}).get("id", None)
+    return jsonify(history=store.get_chat_history(user_id=uid))
 
 
 @chat_bp.delete("/chat/history")
+@require_auth
 def clear_history():
-    store.clear_chat()
+    uid = getattr(g, "current_user", {}).get("id", None)
+    store.clear_chat(user_id=uid)
     return jsonify(status="cleared")

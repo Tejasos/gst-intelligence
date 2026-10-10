@@ -43,9 +43,16 @@ desktop.ini
 # ── Secrets ──────────────────────────────────────────────────────────────────
 .env
 .env.*
+!.env.example
 secrets.json
 credentials.json
 
 # Test-generated workbooks (may contain client data)
 backend/tests/_*.xlsx
 backend/tests/*.xlsx
+*.db
+*.sqlite
+*.sqlite3
+data/
+backend/data/
+.superpowers/
