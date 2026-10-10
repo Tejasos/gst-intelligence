@@ -20,6 +20,8 @@ def test_default_config(monkeypatch):
     assert Config.OUTPUT_DIR.endswith("output")
     assert Config.AI_PROVIDER == "ollama"
     assert Config.OLLAMA_BASE_URL == "http://localhost:11434"
+    assert Config.OPENROUTER_BASE_URL == "https://openrouter.ai/api/v1"
+    assert Config.AI_FALLBACK_TO_OPENROUTER is True
 
 def test_override_config(monkeypatch):
     monkeypatch.setenv("APP_ENV", "production")
@@ -27,7 +29,9 @@ def test_override_config(monkeypatch):
     monkeypatch.setenv("UPLOAD_DIR", "/durable/uploads")
     monkeypatch.setenv("OUTPUT_DIR", "/durable/output")
     monkeypatch.setenv("SECRET_KEY", "super-secret-key-123")
-    monkeypatch.setenv("AI_PROVIDER", "hosted")
+    monkeypatch.setenv("AI_PROVIDER", "openrouter")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test-key")
+    monkeypatch.setenv("OPENROUTER_MODEL", "google/gemini-2.0-flash-001")
     monkeypatch.setenv("HOSTED_AI_BASE_URL", "https://api.hosted-ai.com/v1")
     monkeypatch.setenv("HOSTED_AI_API_KEY", "sk-secret-token")
     monkeypatch.setenv("HOSTED_AI_MODEL", "gpt-4o")
@@ -43,7 +47,9 @@ def test_override_config(monkeypatch):
     assert config.Config.UPLOAD_DIR == "/durable/uploads"
     assert config.Config.OUTPUT_DIR == "/durable/output"
     assert config.Config.SECRET_KEY == "super-secret-key-123"
-    assert config.Config.AI_PROVIDER == "hosted"
+    assert config.Config.AI_PROVIDER == "openrouter"
+    assert config.Config.OPENROUTER_API_KEY == "sk-or-test-key"
+    assert config.Config.OPENROUTER_MODEL == "google/gemini-2.0-flash-001"
     assert config.Config.HOSTED_AI_BASE_URL == "https://api.hosted-ai.com/v1"
     assert config.Config.HOSTED_AI_API_KEY == "sk-secret-token"
     assert config.Config.HOSTED_AI_MODEL == "gpt-4o"

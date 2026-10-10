@@ -17,6 +17,10 @@ services:
       - AI_PROVIDER=${AI_PROVIDER:-ollama}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
       - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3:8b}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL:-meta-llama/llama-3.3-70b-instruct:free}
+      - OPENROUTER_BASE_URL=${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
+      - AI_FALLBACK_TO_OPENROUTER=${AI_FALLBACK_TO_OPENROUTER:-true}
       - HOSTED_AI_BASE_URL=${HOSTED_AI_BASE_URL:-https://api.openai.com/v1}
       - HOSTED_AI_API_KEY=${HOSTED_AI_API_KEY:-}
       - HOSTED_AI_MODEL=${HOSTED_AI_MODEL:-gpt-4o-mini}

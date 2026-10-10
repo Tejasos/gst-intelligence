@@ -36,7 +36,16 @@ class Config:
     OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3:8b")
     OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "120"))
     
-    # Hosted AI Provider
+    # OpenRouter AI Provider
+    OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+    OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct:free")
+    OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1").rstrip("/")
+    OPENROUTER_TIMEOUT = int(os.getenv("OPENROUTER_TIMEOUT", "60"))
+    OPENROUTER_SITE_URL = os.getenv("OPENROUTER_SITE_URL", "https://github.com/Tejasos/gst-intelligence")
+    OPENROUTER_SITE_NAME = os.getenv("OPENROUTER_SITE_NAME", "GST Intelligence")
+    AI_FALLBACK_TO_OPENROUTER = os.getenv("AI_FALLBACK_TO_OPENROUTER", "true").lower() in ("true", "1", "yes")
+
+    # Hosted AI Provider (Generic OpenAI-compatible)
     HOSTED_AI_BASE_URL = os.getenv("HOSTED_AI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
     HOSTED_AI_API_KEY = os.getenv("HOSTED_AI_API_KEY", "")
     HOSTED_AI_MODEL = os.getenv("HOSTED_AI_MODEL", "gpt-4o-mini")

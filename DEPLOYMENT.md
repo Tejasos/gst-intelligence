@@ -43,10 +43,19 @@ AUTH_REQUIRED=true
 SESSION_EXPIRY_HOURS=72
 MAX_UPLOAD_MB=50
 
-# AI Inference Mode ('ollama' or 'hosted')
-AI_PROVIDER=hosted
+# AI Inference Mode ('ollama', 'openrouter', 'hosted', or 'auto')
+AI_PROVIDER=ollama
 
-# Hosted AI Provider (OpenAI, Groq, Together, OpenRouter)
+# Automatic Fallback: If Ollama is offline or uninstalled, seamlessly route to OpenRouter
+AI_FALLBACK_TO_OPENROUTER=true
+
+# OpenRouter Settings (recommended for Railway / Cloud)
+OPENROUTER_API_KEY=sk-or-v1-your-key-here
+OPENROUTER_MODEL=meta-llama/llama-3.3-70b-instruct:free
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+OPENROUTER_TIMEOUT=60
+
+# Generic Hosted AI Provider (OpenAI, Groq, Mistral, Together)
 HOSTED_AI_BASE_URL=https://api.openai.com/v1
 HOSTED_AI_API_KEY=sk-your-private-api-key
 HOSTED_AI_MODEL=gpt-4o-mini
