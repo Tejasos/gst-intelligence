@@ -118,6 +118,27 @@ python -c "import secrets; print(secrets.token_hex(32))"
 
 ---
 
+## 5. Deployment Option C: Railway (Managed Cloud)
+
+Railway uses the root `Dockerfile` and `railway.json` automatically:
+
+1. **Create / Connect Project on Railway**:
+   - In Railway Dashboard, click **New Project** -> **Deploy from GitHub repo** -> Select `Tejasos/gst-intelligence`.
+2. **Backend Service Settings**:
+   - **Builder**: Automatically set to `Dockerfile` via `railway.json` (or set **Settings > Build > Builder** to **Dockerfile**).
+   - **Root Directory**: Leave as `/` (root) or `/backend`. Both work seamlessly.
+3. **Attach Persistent Volume**:
+   - In your backend service dashboard on Railway, click **Volumes** -> **Add Volume**.
+   - **Mount Path**: `/app/data` (ensures SQLite database and uploads survive deployments).
+4. **Environment Variables**:
+   - Add variables: `APP_ENV=production`, `SECRET_KEY=...`, `AUTH_REQUIRED=true`, `ALLOWED_ORIGINS=*` (or your frontend URL).
+   - *(Note: Railway automatically provides and binds to dynamic `$PORT`)*.
+5. **Generate Domain**:
+   - Go to **Settings > Networking > Public Networking** and click **Generate Domain** to get your public HTTPS URL.
+
+
+---
+
 ## 5. Health Checks and Monitoring
 
 The backend exposes two dedicated monitoring endpoints:
