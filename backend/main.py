@@ -142,6 +142,7 @@ def root():
 
 
 @app.get("/api/health")
+@app.get("/health")
 def health():
     return {"status": "ok", "service": "GST Intelligence API", "version": "2.0.0"}
 

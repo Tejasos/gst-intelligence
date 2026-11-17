@@ -82,14 +82,27 @@ export default function BackendConfigModal({ isOpen, onClose }) {
           </div>
           <div>
             <h2 className="text-lg font-bold text-white">Backend API Connection</h2>
-            <p className="text-xs text-slate-400">Connect this frontend to your deployed Railway backend</p>
+            <p className="text-xs text-slate-400">Uses built-in Vercel Serverless Function (/api) or optional external backend</p>
           </div>
         </div>
 
         <div className="space-y-4">
+          <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3 text-xs text-emerald-300 flex items-center justify-between gap-2">
+            <div>
+              <p className="font-semibold text-emerald-200">Built-in Vercel Serverless Function</p>
+              <p className="opacity-80 text-[11px]">No external backend required! Runs natively on Vercel at <code>/api</code>.</p>
+            </div>
+            <button
+              onClick={handleReset}
+              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shrink-0 transition-colors"
+            >
+              ⚡ Use /api
+            </button>
+          </div>
+
           <div>
             <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
-              Backend API Base URL
+              Custom External Backend URL (Optional)
             </label>
             <div className="flex gap-2">
               <input
