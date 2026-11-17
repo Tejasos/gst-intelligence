@@ -1,4 +1,5 @@
 import os
+import tempfile
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -16,7 +17,7 @@ class Config:
     
     # Storage and Persistence
     IS_VERCEL = bool(os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
-    _DEFAULT_DATA_DIR = "/tmp/data" if IS_VERCEL else str(_BASE_DIR / "data")
+    _DEFAULT_DATA_DIR = str(Path(tempfile.gettempdir()) / "gst_data") if IS_VERCEL else str(_BASE_DIR / "data")
     DATA_DIR = os.getenv("DATA_DIR", _DEFAULT_DATA_DIR)
     DATABASE_PATH = os.getenv("DATABASE_PATH", str(Path(DATA_DIR) / "gst_intelligence.db"))
     UPLOAD_DIR = os.getenv("UPLOAD_DIR", str(Path(DATA_DIR) / "uploads"))

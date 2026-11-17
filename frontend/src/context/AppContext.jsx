@@ -50,56 +50,6 @@ export function AppProvider({ children }) {
     setCurrentModeState(mode)
   }, [])
 
-  // Backend connectivity state
-  const [backendStatus, setBackendStatus]   = useState('checking') // 'checking' | 'connected' | 'disconnected'
-  const [backendError, setBackendError]     = useState(null)
-  const [showBackendModal, setShowBackendModal] = useState(false)
-
-  const checkBackendHealth = useCallback(async () => {
-    setBackendStatus('checking')
-    setBackendError(null)
-    const base = getApiBase()
-    try {
-      const res = await axios.get(`${base}/health`, { timeout: 6000 })
-      const isJson = typeof res.data === 'object' && res.data !== null
-      if (res.status === 200 && isJson && res.data?.status === 'ok') {
-        setBackendStatus('connected')
-        setBackendError(null)
-        return true
-      } else {
-        setBackendStatus('disconnected')
-        setBackendError('Backend returned invalid response (possibly HTML or non-JSON).')
-        return false
-      }
-    } catch (err) {
-      setBackendStatus('disconnected')
-      const msg = err.code === 'ERR_NETWORK' || !err.response
-        ? `Cannot reach backend at ${base}. Server may be offline, sleeping, or not connected.`
-        : (err.response?.status === 404 ? `Health endpoint 404 Not Found at ${base}.` : err.message)
-      setBackendError(msg)
-      return false
-    }
-  }, [])
-
-  useEffect(() => {
-    checkBackendHealth()
-
-    const onDisconnect = () => {
-      setBackendStatus('disconnected')
-      setShowBackendModal(true)
-    }
-    const onUrlChanged = () => {
-      checkBackendHealth()
-    }
-
-    window.addEventListener('gst-backend-disconnected', onDisconnect)
-    window.addEventListener('gst-backend-url-changed', onUrlChanged)
-    return () => {
-      window.removeEventListener('gst-backend-disconnected', onDisconnect)
-      window.removeEventListener('gst-backend-url-changed', onUrlChanged)
-    }
-  }, [checkBackendHealth])
-
   const streamAbortRef = useRef(null)
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -211,16 +161,7 @@ export function AppProvider({ children }) {
       return data
     } catch (err) {
       let msg = 'Upload failed'
-      const currentBase = getApiBase()
-      setBackendStatus('disconnected')
-
-      if (err.code === 'ERR_NETWORK' || err.message === 'Network Error' || !err.response) {
-        msg = `Backend server unreachable at ${currentBase}. The server may be offline, sleeping, or not yet connected. Click "Configure Backend URL" to connect.`
-      } else if (err.response?.status === 404) {
-        msg = `Backend API endpoint not found (404) at ${currentBase}. Please check your backend URL.`
-      } else if (typeof err.response?.data === 'string' && err.response.data.includes('<!DOCTYPE html>')) {
-        msg = `Backend returned HTML instead of an API response at ${currentBase}. Please configure an external backend URL (e.g. Railway).`
-      } else if (err.response?.data?.error) {
+      if (err.response?.data?.error) {
         const raw = err.response.data.error
         msg = typeof raw === 'object' ? (raw.message || JSON.stringify(raw)) : String(raw)
       } else if (err.response?.data?.message) {
@@ -427,12 +368,6 @@ export function AppProvider({ children }) {
     setCurrentMode,
     // Session
     clearSession,
-    // Backend Connectivity
-    backendStatus,
-    backendError,
-    showBackendModal,
-    setShowBackendModal,
-    checkBackendHealth,
   }
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>

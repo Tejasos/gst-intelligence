@@ -1,46 +1,25 @@
 import axios from 'axios'
 
 export const getApiBase = () => {
-  let base = ''
   if (typeof window !== 'undefined') {
-    const custom = localStorage.getItem('gst_backend_url')
-    if (custom && custom.trim()) {
-      base = custom.trim().replace(/\/+$/, '')
-    }
+    // Purge any legacy external Railway URL so the browser always uses native serverless /api
+    try {
+      localStorage.removeItem('gst_backend_url')
+    } catch (e) {}
   }
-  if (!base) {
-    base = (import.meta.env.VITE_API_URL || '/api').trim().replace(/\/+$/, '')
-  }
-  // Automatically normalize http/https hostnames so /api is always the base
-  if (/^https?:\/\//i.test(base) && !base.endsWith('/api') && !base.includes('/api/')) {
-    base = `${base}/api`
-  }
-  return base
+  return '/api'
 }
 
-export const setApiBase = (url) => {
-  if (typeof window !== 'undefined') {
-    if (url && url.trim()) {
-      let clean = url.trim().replace(/\/+$/, '')
-      if (!clean.endsWith('/api') && !clean.includes('/api/')) {
-        clean = `${clean}/api`
-      }
-      localStorage.setItem('gst_backend_url', clean)
-    } else {
-      localStorage.removeItem('gst_backend_url')
-    }
-    // Dispatch event for UI reactivity
-    window.dispatchEvent(new CustomEvent('gst-backend-url-changed', { detail: getApiBase() }))
-  }
-}
+export const setApiBase = () => {}
 
 const api = axios.create({
+  baseURL: '/api',
   timeout: 120000,
 })
 
 // Attach base URL and token/guest headers dynamically
 api.interceptors.request.use((config) => {
-  config.baseURL = getApiBase()
+  config.baseURL = '/api'
   
   const token = localStorage.getItem('gst_auth_token')
   if (token) {
@@ -56,17 +35,10 @@ api.interceptors.request.use((config) => {
   return config
 })
 
-// Intercept responses to detect 404 or backend disconnects
+// Intercept responses
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 404 || error.code === 'ERR_NETWORK') {
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('gst-backend-disconnected', { detail: error }))
-      }
-    }
-    return Promise.reject(error)
-  }
+  (error) => Promise.reject(error)
 )
 
 // ── Auth ──────────────────────────────────────────────────────────────────────

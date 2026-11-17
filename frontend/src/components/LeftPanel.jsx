@@ -1,19 +1,18 @@
 /**
  * LeftPanel — File list with period groupings + chat history + reports.
  */
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import {
   FileText, MessageSquare, BarChart2, Trash2,
   CheckCircle2, AlertTriangle, Clock, ChevronDown, ChevronRight,
-  GitCompare, RotateCcw, Server,
+  GitCompare, RotateCcw,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
-import { activateFile as activateFileAPI, exportActiveExcel, exportActivePDF, getApiBase } from '../api/client'
+import { activateFile as activateFileAPI, exportActiveExcel, exportActivePDF } from '../api/client'
 import { useNavigate } from 'react-router-dom'
 import ThemeToggle from './ThemeToggle'
 import AuthModal from './AuthModal'
-import BackendConfigModal from './BackendConfigModal'
 
 function StatusIcon({ status }) {
   if (status === 'ready')   return <CheckCircle2 className="w-3 h-3 text-emerald-400" />
@@ -136,7 +135,6 @@ export default function LeftPanel() {
     filesByPeriod,
     reconciliations,
     clearSession,
-    setShowBackendModal,
   } = useApp()
   const { user, logout } = useAuth()
   const [showAuthModal, setShowAuthModal] = useState(false)
@@ -383,21 +381,6 @@ export default function LeftPanel() {
             Sign In / Register
           </button>
         )}
-      </div>
-
-      {/* Backend API Connection & Status */}
-      <div className="px-3 py-2 border-t border-slate-800/40 flex items-center justify-between text-[11px] text-slate-500">
-        <button
-          onClick={() => setShowBackendModal(true)}
-          className="flex items-center gap-1.5 hover:text-slate-300 transition-colors"
-          title="Configure Backend API URL"
-        >
-          <Server className="w-3.5 h-3.5 text-blue-400" />
-          <span>API Connection</span>
-        </button>
-        <span className="text-[10px] text-slate-600 truncate max-w-[110px]" title={getApiBase()}>
-          {getApiBase() === '/api' ? 'Local (/api)' : 'Remote API'}
-        </span>
       </div>
 
       {/* Footer */}

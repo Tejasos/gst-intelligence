@@ -7,7 +7,7 @@ import { Upload, FolderOpen, AlertCircle, CheckCircle2, Loader2 } from 'lucide-r
 import { useApp } from '../context/AppContext'
 
 export default function FileUpload({ compact = false }) {
-  const { handleUpload, isUploading, uploadProgress, setShowBackendModal } = useApp()
+  const { handleUpload, isUploading, uploadProgress } = useApp()
   const [dragOver, setDragOver]     = useState(false)
   const [results, setResults]       = useState([])   // [{name, status, message}]
   const [processing, setProcessing] = useState(false)
@@ -205,28 +205,11 @@ export default function FileUpload({ compact = false }) {
               {r.status === 'success' && <CheckCircle2 className="w-4 h-4 flex-shrink-0" />}
               {r.status === 'error'   && <AlertCircle  className="w-4 h-4 flex-shrink-0" />}
               {r.status === 'processing' && <Loader2  className="w-4 h-4 flex-shrink-0 animate-spin" />}
-              <div className="flex-1 flex items-center justify-between gap-2 min-w-0">
-                <span className="truncate">
+              <div className="flex-1 min-w-0">
+                <span className="truncate block">
                   <span className="font-medium">{r.name}</span>
                   <span className="opacity-70"> — {r.message}</span>
                 </span>
-                {r.status === 'error' && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      if (setShowBackendModal) {
-                        setShowBackendModal(true)
-                      } else {
-                        window.dispatchEvent(new CustomEvent('gst-backend-disconnected'))
-                      }
-                    }}
-                    className="shrink-0 text-xs px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 transition-colors font-medium"
-                  >
-                    Configure Backend URL
-                  </button>
-                )}
               </div>
             </div>
           ))}
