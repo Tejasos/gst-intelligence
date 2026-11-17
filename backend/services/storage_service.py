@@ -4,15 +4,38 @@ from pathlib import Path
 from typing import Tuple, Optional
 import config
 
+import tempfile
+
 def get_upload_dir() -> Path:
-    d = Path(config.Config.UPLOAD_DIR)
-    d.mkdir(parents=True, exist_ok=True)
-    return d
+    try:
+        d = Path(config.Config.UPLOAD_DIR)
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+    except OSError:
+        fallback = Path(tempfile.gettempdir()) / "gst_data" / "uploads"
+        fallback.mkdir(parents=True, exist_ok=True)
+        return fallback
 
 def get_output_dir() -> Path:
-    d = Path(config.Config.OUTPUT_DIR)
-    d.mkdir(parents=True, exist_ok=True)
-    return d
+    try:
+        d = Path(config.Config.OUTPUT_DIR)
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+    except OSError:
+        fallback = Path(tempfile.gettempdir()) / "gst_data" / "output"
+        fallback.mkdir(parents=True, exist_ok=True)
+        return fallback
+
+def delete_upload_file(file_id: str, upload_dir=None) -> bool:
+    """Safely delete uploaded file if processing failed or cleaning up."""
+    try:
+        path = get_upload_path(file_id, upload_dir=upload_dir)
+        if path and os.path.exists(path):
+            os.remove(path)
+            return True
+    except Exception:
+        pass
+    return False
 
 def validate_pdf_content(content: bytes) -> bool:
     """Validate that the binary content begins with the PDF magic header."""

@@ -21,10 +21,20 @@ export default function FileUpload({ compact = false }) {
 
       const fileList = Array.from(files)
       const newResults = []
+      const MAX_BYTES = 4.5 * 1024 * 1024 // 4.5 MB Vercel Serverless payload limit
 
       for (const file of fileList) {
         if (!file.name.toLowerCase().endsWith('.pdf')) {
           newResults.push({ name: file.name, status: 'error', message: 'Not a PDF file' })
+          continue
+        }
+        if (file.size > MAX_BYTES) {
+          const mb = (file.size / (1024 * 1024)).toFixed(1)
+          newResults.push({
+            name: file.name,
+            status: 'error',
+            message: `File exceeds 4.5 MB limit (${mb} MB). Vercel Serverless limits uploads to 4.5 MB.`
+          })
           continue
         }
         newResults.push({ name: file.name, status: 'processing', message: 'Uploading…' })
@@ -42,10 +52,11 @@ export default function FileUpload({ compact = false }) {
         } catch (err) {
           const idx = newResults.findIndex((r) => r.name === file.name)
           if (idx >= 0) {
+            const serverError = err.response?.data?.error || err.response?.data?.message || err.message || 'Upload failed'
             newResults[idx] = {
               name: file.name,
               status: 'error',
-              message: err.message || 'Upload failed',
+              message: serverError,
             }
           }
         }
@@ -154,7 +165,7 @@ export default function FileUpload({ compact = false }) {
               ))}
             </div>
             <p className="text-slate-600 text-xs">
-              Max 50 MB · Text-based PDFs only · Upload GSTR-1 + GSTR-3B together for auto-reconciliation
+              Max 4.5 MB per file · Text-based PDFs only · Upload GSTR-1 + GSTR-3B together for auto-reconciliation
             </p>
 
             {/* Folder upload */}

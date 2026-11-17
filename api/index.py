@@ -13,14 +13,15 @@ if BACKEND_DIR not in sys.path:
 
 # Configure environment overrides for serverless environment
 # Uses /tmp on Vercel/Linux, or %TEMP% on Windows
+# Unconditionally override to guarantee writable paths regardless of legacy dashboard env vars
 temp_dir = str(Path(tempfile.gettempdir()) / "gst_data")
 
 os.environ["APP_ENV"] = os.getenv("APP_ENV", "production")
-os.environ.setdefault("DATA_DIR", temp_dir)
-os.environ.setdefault("DATABASE_PATH", str(Path(temp_dir) / "gst_intelligence.db"))
-os.environ.setdefault("UPLOAD_DIR", str(Path(temp_dir) / "uploads"))
-os.environ.setdefault("OUTPUT_DIR", str(Path(temp_dir) / "output"))
-os.environ.setdefault("BACKUP_DIR", str(Path(temp_dir) / "backups"))
+os.environ["DATA_DIR"] = temp_dir
+os.environ["DATABASE_PATH"] = str(Path(temp_dir) / "gst_intelligence.db")
+os.environ["UPLOAD_DIR"] = str(Path(temp_dir) / "uploads")
+os.environ["OUTPUT_DIR"] = str(Path(temp_dir) / "output")
+os.environ["BACKUP_DIR"] = str(Path(temp_dir) / "backups")
 
 # Import the WSGI Flask app
 from main import app

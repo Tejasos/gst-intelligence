@@ -62,3 +62,5 @@ Bengal SHRISTI/
 *.pdf
 scratch_*.py
 
+.vercel
+.env*

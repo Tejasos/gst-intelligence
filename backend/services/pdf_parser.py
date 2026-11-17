@@ -5,7 +5,6 @@ AUDIT-SAFE RULE: NEVER assumes or infers values.
 All missing fields are explicitly marked as None.
 Uses page.extract_text() + section/label-based approach, NOT table indices.
 """
-print("*** PARSER FILE ACTIVE:", __file__, "***")
 import re
 import logging
 from typing import Any, Dict, List, Optional
@@ -4142,11 +4141,14 @@ def parse_gst_pdf(file_path: str) -> Dict[str, Any]:
         "_parse_success": False,
         "_parse_warnings": [],
         "_page_count": 0,
+        "_corrupt": False,
     }
 
-    full_text    = ""
+    full_text = ""
     all_tables: List[List[List]] = []
     used_pdfminer = False
+    plumber_open_failed = False
+    miner_failed = False
 
     # ── Step 1: pdfplumber (text + tables, per-page safe) ─────────────────────
     try:
@@ -4174,18 +4176,29 @@ def parse_gst_pdf(file_path: str) -> Dict[str, Any]:
                         result["_page_count"], len(full_text), len(all_tables))
 
     except Exception as exc:
+        plumber_open_failed = True
         logger.warning("[pdfplumber] Open failed: %s", exc)
 
     # ── Step 2: pdfminer fallback if pdfplumber gave no text ──────────────────
     if not full_text.strip():
         logger.info("[PDF] pdfplumber returned no text → trying pdfminer.six")
-        full_text = _extract_text_pdfminer(file_path)
-        used_pdfminer = True
-        if full_text.strip():
-            result["_parse_warnings"].append(
-                "Text extracted via pdfminer (pdfplumber incompatible with this PDF). "
-                "Table-based fields may be limited."
-            )
+        try:
+            full_text = _extract_text_pdfminer(file_path)
+            used_pdfminer = True
+            if full_text.strip():
+                result["_parse_warnings"].append(
+                    "Text extracted via pdfminer (pdfplumber incompatible with this PDF). "
+                    "Table-based fields may be limited."
+                )
+        except Exception as exc:
+            miner_failed = True
+            logger.warning("[pdfminer] Extraction failed: %s", exc)
+
+    # Container corruption check: both libraries failed to open/read valid PDF structure
+    if plumber_open_failed and (miner_failed or not full_text.strip()):
+        result["_corrupt"] = True
+        result["_parse_warnings"].append("Unable to parse PDF container: file structure appears corrupted or invalid.")
+        return result
 
     if not full_text.strip():
         result["_parse_warnings"].append(

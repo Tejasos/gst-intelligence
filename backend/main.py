@@ -69,6 +69,15 @@ if _log_file:
     _builtins.print = _tee_print
 
 app = Flask(__name__)
+app.config["MAX_CONTENT_LENGTH"] = Config.MAX_CONTENT_LENGTH
+
+@app.errorhandler(413)
+def request_entity_too_large(error):
+    max_mb = Config.MAX_CONTENT_LENGTH / (1024 * 1024)
+    return {
+        "error": f"File or payload too large. Maximum allowed size is {max_mb:.1f} MB (Vercel Serverless limit: 4.5 MB).",
+        "code": "PAYLOAD_TOO_LARGE"
+    }, 413
 
 # Configure CORS globally for all endpoints (supporting Vercel, Railway, and localhost)
 CORS(

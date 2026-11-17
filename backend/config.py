@@ -17,12 +17,36 @@ class Config:
     
     # Storage and Persistence
     IS_VERCEL = bool(os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
-    _DEFAULT_DATA_DIR = str(Path(tempfile.gettempdir()) / "gst_data") if IS_VERCEL else str(_BASE_DIR / "data")
-    DATA_DIR = os.getenv("DATA_DIR", _DEFAULT_DATA_DIR)
-    DATABASE_PATH = os.getenv("DATABASE_PATH", str(Path(DATA_DIR) / "gst_intelligence.db"))
-    UPLOAD_DIR = os.getenv("UPLOAD_DIR", str(Path(DATA_DIR) / "uploads"))
-    OUTPUT_DIR = os.getenv("OUTPUT_DIR", str(Path(DATA_DIR) / "output"))
-    BACKUP_DIR = os.getenv("BACKUP_DIR", str(Path(DATA_DIR) / "backups"))
+    _TEMP_GST_DATA = str(Path(tempfile.gettempdir()) / "gst_data")
+    _DEFAULT_DATA_DIR = _TEMP_GST_DATA if IS_VERCEL else str(_BASE_DIR / "data")
+    
+    _raw_data = os.getenv("DATA_DIR", _DEFAULT_DATA_DIR)
+    DATA_DIR = _TEMP_GST_DATA if (IS_VERCEL and (not _raw_data or _raw_data.startswith("/app") or not _raw_data.startswith(tempfile.gettempdir()))) else _raw_data
+
+    @staticmethod
+    def _clean_path(val: str, default_path: str, is_vercel: bool) -> str:
+        if is_vercel:
+            if not val or val.startswith("/app") or not val.startswith(tempfile.gettempdir()):
+                return default_path
+            return val
+        return val if val else default_path
+
+    DATABASE_PATH = _clean_path(os.getenv("DATABASE_PATH"), str(Path(DATA_DIR) / "gst_intelligence.db"), IS_VERCEL)
+    UPLOAD_DIR    = _clean_path(os.getenv("UPLOAD_DIR"),    str(Path(DATA_DIR) / "uploads"),             IS_VERCEL)
+    OUTPUT_DIR    = _clean_path(os.getenv("OUTPUT_DIR"),    str(Path(DATA_DIR) / "output"),              IS_VERCEL)
+    BACKUP_DIR    = _clean_path(os.getenv("BACKUP_DIR"),    str(Path(DATA_DIR) / "backups"),             IS_VERCEL)
+
+    # Sync sanitized paths back to os.environ so child modules/subprocesses see them
+    if IS_VERCEL:
+        os.environ["DATA_DIR"] = DATA_DIR
+        os.environ["DATABASE_PATH"] = DATABASE_PATH
+        os.environ["UPLOAD_DIR"] = UPLOAD_DIR
+        os.environ["OUTPUT_DIR"] = OUTPUT_DIR
+        os.environ["BACKUP_DIR"] = BACKUP_DIR
+
+    # File limits (Vercel serverless hard limit is 4.5 MB)
+    MAX_UPLOAD_MB = 4.5 if IS_VERCEL else float(os.getenv("MAX_UPLOAD_MB", "50"))
+    MAX_CONTENT_LENGTH = int(MAX_UPLOAD_MB * 1024 * 1024)
     
     # Security & CORS
     ALLOWED_ORIGINS = [
