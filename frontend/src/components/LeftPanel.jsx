@@ -136,17 +136,11 @@ export default function LeftPanel() {
     filesByPeriod,
     reconciliations,
     clearSession,
+    setShowBackendModal,
   } = useApp()
   const { user, logout } = useAuth()
   const [showAuthModal, setShowAuthModal] = useState(false)
-  const [showBackendModal, setShowBackendModal] = useState(false)
   const [confirmClear, setConfirmClear] = useState(false)
-
-  useEffect(() => {
-    const onDisconnect = () => setShowBackendModal(true)
-    window.addEventListener('gst-backend-disconnected', onDisconnect)
-    return () => window.removeEventListener('gst-backend-disconnected', onDisconnect)
-  }, [])
 
   const handleNewSession = async () => {
     if (!confirmClear) { setConfirmClear(true); return }
@@ -412,7 +406,6 @@ export default function LeftPanel() {
       </div>
 
       <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
-      <BackendConfigModal isOpen={showBackendModal} onClose={() => setShowBackendModal(false)} />
     </aside>
   )
 }

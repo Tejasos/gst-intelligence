@@ -26,13 +26,17 @@ from config import Config
 
 Config.ensure_directories()
 
+log_handlers = [logging.StreamHandler()]
+if not os.getenv("VERCEL") and not os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
+    try:
+        log_handlers.append(logging.FileHandler("backend.log", encoding="utf-8"))
+    except OSError:
+        pass
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
-    handlers=[
-        logging.StreamHandler(),                         # console
-        logging.FileHandler("backend.log", encoding="utf-8"),  # file
-    ],
+    handlers=log_handlers,
 )
 
 # Also redirect print() to both console and log file so debug prints are captured
@@ -46,13 +50,23 @@ try:
 except AttributeError:
     pass  # Python < 3.7 or non-TextIOWrapper stdout
 
-_log_file = open("backend.log", "a", encoding="utf-8", buffering=1)
-_orig_print = _builtins.print
-def _tee_print(*args, **kwargs):
-    _orig_print(*args, **kwargs)
-    kwargs.pop("file", None)
-    _orig_print(*args, file=_log_file, **kwargs)
-_builtins.print = _tee_print
+_log_file = None
+if not os.getenv("VERCEL") and not os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
+    try:
+        _log_file = open("backend.log", "a", encoding="utf-8", buffering=1)
+    except OSError:
+        pass
+
+if _log_file:
+    _orig_print = _builtins.print
+    def _tee_print(*args, **kwargs):
+        _orig_print(*args, **kwargs)
+        kwargs.pop("file", None)
+        try:
+            _orig_print(*args, file=_log_file, **kwargs)
+        except Exception:
+            pass
+    _builtins.print = _tee_print
 
 app = Flask(__name__)
 

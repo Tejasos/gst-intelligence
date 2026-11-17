@@ -15,7 +15,9 @@ class Config:
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-gst-intelligence-secret-change-in-production")
     
     # Storage and Persistence
-    DATA_DIR = os.getenv("DATA_DIR", str(_BASE_DIR / "data"))
+    IS_VERCEL = bool(os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
+    _DEFAULT_DATA_DIR = "/tmp/data" if IS_VERCEL else str(_BASE_DIR / "data")
+    DATA_DIR = os.getenv("DATA_DIR", _DEFAULT_DATA_DIR)
     DATABASE_PATH = os.getenv("DATABASE_PATH", str(Path(DATA_DIR) / "gst_intelligence.db"))
     UPLOAD_DIR = os.getenv("UPLOAD_DIR", str(Path(DATA_DIR) / "uploads"))
     OUTPUT_DIR = os.getenv("OUTPUT_DIR", str(Path(DATA_DIR) / "output"))
@@ -58,4 +60,7 @@ class Config:
     @classmethod
     def ensure_directories(cls):
         for directory in [Path(cls.DATABASE_PATH).parent, Path(cls.UPLOAD_DIR), Path(cls.OUTPUT_DIR), Path(cls.BACKUP_DIR)]:
-            os.makedirs(directory, exist_ok=True)
+            try:
+                os.makedirs(directory, exist_ok=True)
+            except OSError as e:
+                print(f"[Config] Warning creating directory {directory}: {e}")

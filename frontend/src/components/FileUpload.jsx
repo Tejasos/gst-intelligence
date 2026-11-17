@@ -7,7 +7,7 @@ import { Upload, FolderOpen, AlertCircle, CheckCircle2, Loader2 } from 'lucide-r
 import { useApp } from '../context/AppContext'
 
 export default function FileUpload({ compact = false }) {
-  const { handleUpload, isUploading, uploadProgress } = useApp()
+  const { handleUpload, isUploading, uploadProgress, setShowBackendModal } = useApp()
   const [dragOver, setDragOver]     = useState(false)
   const [results, setResults]       = useState([])   // [{name, status, message}]
   const [processing, setProcessing] = useState(false)
@@ -210,17 +210,21 @@ export default function FileUpload({ compact = false }) {
                   <span className="font-medium">{r.name}</span>
                   <span className="opacity-70"> — {r.message}</span>
                 </span>
-                {(r.message?.includes('404') || r.message?.includes('Backend') || r.message?.includes('connect') || r.message?.includes('failed')) && (
+                {r.status === 'error' && (
                   <button
                     type="button"
                     onClick={(e) => {
                       e.preventDefault()
                       e.stopPropagation()
-                      window.dispatchEvent(new CustomEvent('gst-backend-disconnected'))
+                      if (setShowBackendModal) {
+                        setShowBackendModal(true)
+                      } else {
+                        window.dispatchEvent(new CustomEvent('gst-backend-disconnected'))
+                      }
                     }}
-                    className="shrink-0 text-xs px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 transition-colors"
+                    className="shrink-0 text-xs px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 transition-colors font-medium"
                   >
-                    Connect Backend API
+                    Configure Backend URL
                   </button>
                 )}
               </div>

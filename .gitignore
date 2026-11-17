@@ -56,3 +56,9 @@ backend/tests/*.xlsx
 data/
 backend/data/
 .superpowers/
+
+# Scratch & Local client test data
+Bengal SHRISTI/
+*.pdf
+scratch_*.py
+
