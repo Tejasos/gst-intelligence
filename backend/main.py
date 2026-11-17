@@ -86,6 +86,27 @@ class ApiPrefixAndCorsMiddleware:
 
     def __call__(self, environ, start_response):
         path_info = environ.get("PATH_INFO", "")
+
+        # Vercel serverless rewrite handler:
+        # When Vercel rewrites /api/(.*) -> /api/index, PATH_INFO can be set to /api/index
+        # while the actual target path is in REQUEST_URI, RAW_URI, or HTTP_X_FORWARDED_URI.
+        raw_uri = environ.get("REQUEST_URI") or environ.get("RAW_URI") or environ.get("HTTP_X_FORWARDED_URI") or ""
+        if raw_uri:
+            req_path = raw_uri.split("?", 1)[0]
+            if req_path and req_path not in ("/api/index", "/api/index.py", "/api", "/api/"):
+                path_info = req_path
+                environ["PATH_INFO"] = req_path
+
+        # If PATH_INFO is still /api/index, check x-now-route-matches
+        if path_info in ("/api/index", "/api/index/", "/index", "/index/"):
+            matched = environ.get("HTTP_X_NOW_ROUTE_MATCHES") or ""
+            if "1=" in matched:
+                import urllib.parse
+                sub = matched.split("1=")[1].split("&")[0]
+                unquoted = urllib.parse.unquote(sub).lstrip("/")
+                path_info = f"/api/{unquoted}"
+                environ["PATH_INFO"] = path_info
+
         # Rewrite non-api paths to /api prefix so /upload routes to /api/upload
         if not path_info.startswith("/api/"):
             for ep in ("upload", "chat", "analytics", "export", "files", "reconciliation", "intelligence", "gstr2b", "gstr2a", "auth", "health", "ready", "session"):

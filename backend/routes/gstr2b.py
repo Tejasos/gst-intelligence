@@ -14,6 +14,7 @@ MAX_MB    = 30
 
 
 @gstr2b_bp.post('/gstr2b/compile')
+@gstr2b_bp.post('/compile')
 def compile_route():
     files = request.files.getlist('files')
     if not files or (len(files) == 1 and files[0].filename == ''):
