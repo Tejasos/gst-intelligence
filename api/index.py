@@ -31,3 +31,25 @@ try:
     init_db()
 except Exception as e:
     print(f"[VERCEL COLD-START] DB Init Notice: {e}")
+
+# Safe diagnostic logging at serverless entrypoint (no tokens, no bodies)
+class DiagnosticLoggingMiddleware:
+    def __init__(self, wsgi_app):
+        self.wsgi_app = wsgi_app
+
+    def __call__(self, environ, start_response):
+        method = environ.get("REQUEST_METHOD", "UNKNOWN")
+        path = environ.get("PATH_INFO", "")
+        qs = environ.get("QUERY_STRING", "")
+        
+        status_holder = ["unknown"]
+        def logging_start_response(status, response_headers, exc_info=None):
+            status_holder[0] = status
+            return start_response(status, response_headers, exc_info)
+
+        result = self.wsgi_app(environ, logging_start_response)
+        resolved = environ.get("PATH_INFO", path)
+        print(f"[VERCEL-ENTRY] {method} {path} (resolved: {resolved}) -> {status_holder[0]}")
+        return result
+
+app.wsgi_app = DiagnosticLoggingMiddleware(app.wsgi_app)

@@ -80,39 +80,70 @@ CORS(
 )
 
 class ApiPrefixAndCorsMiddleware:
-    """WSGI middleware ensuring /api prefix rewriting and robust CORS headers on ALL responses."""
+    """
+    WSGI middleware for Vercel Serverless and local environments:
+    - Recovers target subpath from Vercel rewrites (__path query param, REQUEST_URI, x-now-route-matches)
+    - Normalizes slashes (collapses multiple slashes, strips trailing slashes to prevent Flask 404s)
+    - Cleans internal routing parameters (__path) from QUERY_STRING
+    - Fast preflight CORS (OPTIONS -> 204) and injects CORS on ALL responses (including 4xx/5xx)
+    """
     def __init__(self, wsgi_app):
         self.wsgi_app = wsgi_app
 
     def __call__(self, environ, start_response):
-        path_info = environ.get("PATH_INFO", "")
+        import urllib.parse
+        import re
 
-        # Vercel serverless rewrite handler:
-        # When Vercel rewrites /api/(.*) -> /api/index, PATH_INFO can be set to /api/index
-        # while the actual target path is in REQUEST_URI, RAW_URI, or HTTP_X_FORWARDED_URI.
-        raw_uri = environ.get("REQUEST_URI") or environ.get("RAW_URI") or environ.get("HTTP_X_FORWARDED_URI") or ""
-        if raw_uri:
-            req_path = raw_uri.split("?", 1)[0]
-            if req_path and req_path not in ("/api/index", "/api/index.py", "/api", "/api/"):
-                path_info = req_path
-                environ["PATH_INFO"] = req_path
+        path_info = environ.get("PATH_INFO", "") or "/"
+        qs = environ.get("QUERY_STRING", "")
 
-        # If PATH_INFO is still /api/index, check x-now-route-matches
-        if path_info in ("/api/index", "/api/index/", "/index", "/index/"):
+        # 1. Recover subpath from Vercel rewrite query parameter (?__path=$1)
+        if "__path=" in qs or "path=" in qs:
+            params = urllib.parse.parse_qsl(qs, keep_blank_values=True)
+            rewritten_subpath = None
+            clean_params = []
+            for k, v in params:
+                if k in ("__path", "path") and rewritten_subpath is None:
+                    rewritten_subpath = v
+                else:
+                    clean_params.append((k, v))
+            if rewritten_subpath is not None:
+                sub = rewritten_subpath.lstrip("/")
+                path_info = f"/api/{sub}" if sub else "/api"
+                environ["QUERY_STRING"] = urllib.parse.urlencode(clean_params)
+
+        # 2. Recover from REQUEST_URI / RAW_URI if PATH_INFO is an index/serverless destination
+        if path_info in ("/api/index.py", "/api/index", "/api", "/api/", "/index.py", "/index", "/index/"):
+            raw_uri = environ.get("REQUEST_URI") or environ.get("RAW_URI") or environ.get("HTTP_X_FORWARDED_URI") or ""
+            if raw_uri:
+                req_path = raw_uri.split("?", 1)[0]
+                if req_path and req_path not in ("/api/index.py", "/api/index", "/api", "/api/", "/index.py", "/index"):
+                    path_info = req_path
+
+        # 3. Recover from x-now-route-matches if still at index
+        if path_info in ("/api/index.py", "/api/index", "/api", "/api/", "/index.py", "/index", "/index/"):
             matched = environ.get("HTTP_X_NOW_ROUTE_MATCHES") or ""
             if "1=" in matched:
-                import urllib.parse
                 sub = matched.split("1=")[1].split("&")[0]
                 unquoted = urllib.parse.unquote(sub).lstrip("/")
                 path_info = f"/api/{unquoted}"
-                environ["PATH_INFO"] = path_info
 
-        # Rewrite non-api paths to /api prefix so /upload routes to /api/upload
-        if not path_info.startswith("/api/"):
-            for ep in ("upload", "chat", "analytics", "export", "files", "reconciliation", "intelligence", "gstr2b", "gstr2a", "auth", "health", "ready", "session"):
-                if path_info == f"/{ep}" or path_info.startswith(f"/{ep}/"):
-                    environ["PATH_INFO"] = f"/api{path_info}"
-                    break
+        # 4. Collapse multiple consecutive slashes (e.g. /api//upload -> /api/upload)
+        path_info = re.sub(r"/+", "/", path_info)
+
+        # 5. Normalize trailing slashes: strip trailing slash for non-root paths (prevents 404 on @bp.post('/upload'))
+        if len(path_info) > 1 and path_info.endswith("/"):
+            path_info = path_info.rstrip("/")
+
+        # 6. Ensure /api prefix for blueprint endpoints
+        if path_info not in ("/", "/health", "/ready") and not path_info.startswith("/api"):
+            path_info = f"/api{path_info}"
+
+        # 7. Map root /api or index variations to /
+        if path_info in ("/api", "/api/index", "/api/index.py", "/index", "/index.py"):
+            path_info = "/"
+
+        environ["PATH_INFO"] = path_info
 
         # Fast preflight handling
         if environ.get("REQUEST_METHOD") == "OPTIONS":
@@ -158,6 +189,7 @@ app.register_blueprint(auth_bp,         url_prefix="/api")
 
 
 @app.get("/")
+@app.get("/api")
 def root():
     return {"status": "running", "service": "GST Intelligence API", "version": "2.0.0"}
 
@@ -169,6 +201,7 @@ def health():
 
 
 @app.get("/api/ready")
+@app.get("/ready")
 def readiness():
     """Readiness probe checking database connectivity and storage health."""
     from database import get_db_connection
